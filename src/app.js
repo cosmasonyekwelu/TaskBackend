@@ -18,26 +18,30 @@ const errorHandler = require("./middleware/errorHandler");
 const app = express();
 
 app.use(helmet());
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
 );
+
 app.use(mongoSanitize());
 app.use(xss());
-app.use(morgan("dev"));
-app.use(express.json({ limit: "10kb" }));
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+app.use(express.json({ limit: process.env.JSON_LIMIT }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(morgan(process.env.MORGAN_FORMAT));
 
 app.use(
   rateLimit({
     windowMs:
-      parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES || "20", 10) *
+      parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) *
       60 *
       1000,
-    max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX, 10),
     message: {
       status: "error",
       message: "Too many requests, try again later.",
@@ -45,12 +49,8 @@ app.use(
   })
 );
 
-const MONGO_URI =
-  process.env.MONGODB_URI ||
-  "mongodb://localhost:27017/taskbackend_db";
-
 mongoose
-  .connect(MONGO_URI, { autoIndex: true })
+  .connect(process.env.MONGODB_URI, { autoIndex: true })
   .then(() => console.log("MongoDB connected"))
   .catch((err) => {
     console.error("MongoDB error:", err.message);
@@ -79,9 +79,8 @@ app.all("*", (req, res) =>
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`TaskBackend listening on port ${PORT}`)
+app.listen(process.env.PORT, () =>
+  console.log(`TaskBackend listening on port ${process.env.PORT}`)
 );
 
 module.exports = app;
