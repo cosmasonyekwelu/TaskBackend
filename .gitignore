@@ -1,0 +1,60 @@
+# Node modules
+node_modules/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
+
+# Build outputs
+dist/
+build/
+
+# Cache
+.cache/
+.tmp/
+tmp/
+temp/
+
+# MongoDB dump files
+dump/
+*.bson
+*.gz
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE files
+.vscode/
+.vscode-test/
+.idea/
+*.swp
+*.swo
+
+# TypeScript (if ever used)
+*.tsbuildinfo
+
+# PM2 logs and process files
+.pids/
+pm2.log
+pm2.pid
+
