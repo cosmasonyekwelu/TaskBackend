@@ -6,10 +6,7 @@ const { authenticate } = require("../middleware/auth");
 const requireAdmin = (req, res, next) =>
   req.user.role === "admin"
     ? next()
-    : res.status(403).json({ status: "error", message: "Forbidden" });
-
-
-router.post("/register-admin", controller.registerAdmin);
+    : res.status(403).json({ status: "error", message: "Access denied. Admin privileges required." });
 
 router.use(authenticate, requireAdmin);
 
