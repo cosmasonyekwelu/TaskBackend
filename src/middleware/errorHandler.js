@@ -1,5 +1,7 @@
 const errorHandler = (err, req, res, next) => {
-  console.error("ERROR =>", err);
+  if (process.env.NODE_ENV === "development") {
+    console.error("ERROR =>", err);
+  }
 
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
@@ -17,7 +19,22 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === "ValidationError") {
     statusCode = 400;
-    message = Object.values(err.errors).map((e) => e.message).join(", ");
+    const messages = Object.values(err.errors).map((e) => {
+      const path = e.path || (e.properties && e.properties.path) || "";
+      const raw = e.message || (e.properties && e.properties.message) || "";
+
+      if (path === "password") {
+        return "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.";
+      }
+
+      if (/fails to match the required pattern|pattern/i.test(raw)) {
+        return `Invalid value for ${path || "field"}.`;
+      }
+
+      return raw || `Invalid value for ${path || "field"}.`;
+    });
+
+    message = messages.join(", ");
   }
 
   if (err.name === "JsonWebTokenError") {
