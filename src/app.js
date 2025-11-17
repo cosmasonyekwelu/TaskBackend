@@ -22,7 +22,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN,
-    credentials: true,
+    credentials: true
   })
 );
 
@@ -33,29 +33,21 @@ app.use(cookieParser());
 app.use(express.json({ limit: process.env.JSON_LIMIT }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use(morgan(process.env.MORGAN_FORMAT));
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan(process.env.MORGAN_FORMAT));
+}
 
 app.use(
   rateLimit({
-    windowMs:
-      parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) *
-      60 *
-      1000,
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) * 60 * 1000,
     max: parseInt(process.env.RATE_LIMIT_MAX, 10),
-    message: {
-      status: "error",
-      message: "Too many requests, try again later.",
-    },
+    message: { status: "error", message: "Too many requests, try again later." }
   })
 );
 
 mongoose
   .connect(process.env.MONGODB_URI, { autoIndex: true })
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => {
-    console.error("MongoDB error:", err.message);
-    process.exit(1);
-  });
+  .catch(() => process.exit(1));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
@@ -66,21 +58,19 @@ app.get("/health", (req, res) =>
   res.status(200).json({
     status: "success",
     message: "running",
-    env: process.env.NODE_ENV,
+    env: process.env.NODE_ENV
   })
 );
 
 app.all("*", (req, res) =>
   res.status(404).json({
     status: "error",
-    message: `Route ${req.originalUrl} not found`,
+    message: `Route ${req.originalUrl} not found`
   })
 );
 
 app.use(errorHandler);
 
-app.listen(process.env.PORT, () =>
-  console.log(`TaskBackend listening on port ${process.env.PORT}`)
-);
+app.listen(process.env.PORT);
 
 module.exports = app;
