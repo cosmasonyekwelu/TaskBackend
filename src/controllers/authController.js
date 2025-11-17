@@ -10,11 +10,17 @@ const fail = (res, message, status = 400) =>
 const authController = {
   register: async (req, res, next) => {
     try {
-      const { name, email, password } = req.body;
+      const { name, email, password, role } = req.body;
       const existing = await User.findOne({ email });
       if (existing) return fail(res, "User already exists with this email.", 409);
 
-      const user = await User.create({ name, email, password });
+      const user = await User.create({
+        name,
+        email,
+        password,
+        role: role || "user",
+      });
+
       const accessToken = JWTUtils.generateToken({ id: user._id });
 
       return success(
@@ -55,7 +61,6 @@ const authController = {
 
   logout: async (req, res, next) => {
     try {
-
       return success(res, "Logout successful.");
     } catch (err) {
       next(err);
@@ -78,7 +83,7 @@ const authController = {
 
   getMe: async (req, res, next) => {
     try {
-      const user = await User.findById(req.user.id);
+      const user = await User.findById(req.user.id).select("-password");
       return success(res, "", { user });
     } catch (err) {
       next(err);
@@ -89,6 +94,8 @@ const authController = {
     try {
       const { currentPassword, newPassword } = req.body;
       const user = await User.findById(req.user.id).select("+password");
+      if (!user) return fail(res, "User not found.", 404);
+
       const valid = await user.comparePassword(currentPassword);
       if (!valid) return fail(res, "Current password is incorrect.", 401);
 

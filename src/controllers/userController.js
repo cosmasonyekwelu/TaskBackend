@@ -17,6 +17,26 @@ const BLOCKED_FIELDS = [
   "passwordChangedAt",
 ];
 
+exports.register = async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    const exists = await User.findOne({ email });
+    if (exists) return fail(res, "User already exists with this email.", 409);
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || "user",
+    });
+
+    return success(res, "Account created successfully.", { user }, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select("-password");

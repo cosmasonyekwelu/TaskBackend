@@ -9,10 +9,9 @@ const fail = (res, message, status = 400) =>
 
 const BLOCKED_USER_FIELDS = ["password", "role", "createdAt", "updatedAt"];
 
-
 exports.registerAdmin = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     const exists = await User.findOne({ email });
     if (exists) return fail(res, "Admin already exists with this email.", 409);
@@ -21,7 +20,7 @@ exports.registerAdmin = async (req, res, next) => {
       name,
       email,
       password,
-      role: "admin",
+      role: role || "admin",
     });
 
     return success(res, "Admin account created successfully.", { admin }, 201);
@@ -29,7 +28,6 @@ exports.registerAdmin = async (req, res, next) => {
     next(err);
   }
 };
-
 
 exports.listUsers = async (req, res, next) => {
   try {
@@ -92,7 +90,6 @@ exports.deleteUser = async (req, res, next) => {
     next(err);
   }
 };
-
 
 exports.createProduct = async (req, res, next) => {
   try {

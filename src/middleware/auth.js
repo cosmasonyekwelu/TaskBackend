@@ -22,7 +22,7 @@ const authenticate = async (req, res, next) => {
       return fail(res, "Invalid token. Please log in again.");
     }
 
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).select("+password");
     if (!user) return fail(res, "User no longer exists.");
     if (!user.isActive) return fail(res, "Account has been deactivated.");
 
@@ -37,7 +37,6 @@ const authenticate = async (req, res, next) => {
     req.token = token;
     next();
   } catch (error) {
-    console.error("Authentication error:", error);
     return fail(res, "Authentication failed.", 500);
   }
 };

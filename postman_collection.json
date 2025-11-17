@@ -25,7 +25,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"StrongPass#2025\"\n}"
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"StrongPass#2025\",\n  \"role\": \"user\"\n}"
             },
             "url": "{{base_url}}/auth/register"
           }
@@ -105,7 +105,6 @@
     },
 
 
-
     {
       "name": "User",
       "item": [
@@ -145,7 +144,6 @@
         }
       ]
     },
-
 
 
     {
@@ -216,7 +214,6 @@
     },
 
 
-
     {
       "name": "Admin",
       "item": [
@@ -230,7 +227,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Super Admin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"AdminStrong#2025\"\n}"
+              "raw": "{\n  \"name\": \"Super Admin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"AdminStrong#2025\",\n  \"role\": \"admin\"\n}"
             },
             "url": "{{base_url}}/admin/register-admin"
           }
