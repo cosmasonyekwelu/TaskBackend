@@ -8,6 +8,9 @@ const requireAdmin = (req, res, next) =>
     ? next()
     : res.status(403).json({ status: "error", message: "Forbidden" });
 
+
+router.post("/register-admin", controller.registerAdmin);
+
 router.use(authenticate, requireAdmin);
 
 router.get("/users", controller.listUsers);

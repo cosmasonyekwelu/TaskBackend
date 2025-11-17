@@ -6,7 +6,7 @@
   },
 
   "variable": [
-    { "key": "base_url", "value": "http://localhost:3000/api" },
+    { "key": "base_url", "value": "https://taskbackend-10qt.onrender.com/api" },
     { "key": "token", "value": "" },
     { "key": "product_id", "value": "" },
     { "key": "user_id", "value": "" }
@@ -41,7 +41,6 @@
                   "let res = pm.response.json();",
                   "if (res.data && res.data.accessToken) {",
                   "  pm.collectionVariables.set('token', res.data.accessToken);",
-                  "  console.log('Token stored successfully');",
                   "} else {",
                   "  console.log('Token missing in response');",
                   "}"
@@ -173,10 +172,7 @@
                   "let res = pm.response.json();",
                   "if (res.data && res.data.product) {",
                   "  pm.collectionVariables.set('product_id', res.data.product._id);",
-                  "  console.log('Product ID stored');",
-                  "} else {",
-                  "  console.log('Product ID not found');",
-                  "}"
+                  "} else { console.log('Product ID not found'); }"
                 ]
               }
             }
@@ -203,7 +199,7 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Updated Name\",\n  \"price\": 25\n}" },
+            "body": { "mode": "raw", "raw": "{ \"price\": 25 }" },
             "url": "{{base_url}}/products/{{product_id}}"
           }
         },
@@ -224,6 +220,21 @@
     {
       "name": "Admin",
       "item": [
+
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Super Admin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"AdminStrong#2025\"\n}"
+            },
+            "url": "{{base_url}}/admin/register-admin"
+          }
+        },
 
         {
           "name": "List All Users",
@@ -251,7 +262,7 @@
               { "key": "Authorization", "value": "Bearer {{token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Admin Updated User\"\n}" },
+            "body": { "mode": "raw", "raw": "{ \"name\": \"Admin Updated User\" }" },
             "url": "{{base_url}}/admin/users/{{user_id}}"
           }
         },
@@ -275,7 +286,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Admin Product\",\n  \"description\": \"Created by admin\",\n  \"price\": 55,\n  \"stock\": 3\n}"
+              "raw": "{ \"title\": \"Admin Product\", \"description\": \"Created by admin\", \"price\": 55, \"stock\": 3 }"
             },
             "url": "{{base_url}}/admin/products"
           }
