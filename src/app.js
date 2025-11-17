@@ -1,4 +1,6 @@
 require("dotenv").config();
+require("events").EventEmitter.defaultMaxListeners = 20;
+
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
@@ -33,21 +35,28 @@ app.use(cookieParser());
 app.use(express.json({ limit: process.env.JSON_LIMIT }));
 app.use(express.urlencoded({ extended: true }));
 
-if (process.env.NODE_ENV === "development") {
-  app.use(morgan(process.env.MORGAN_FORMAT));
-}
+app.use(morgan(process.env.MORGAN_FORMAT || "dev"));
 
 app.use(
   rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) * 60 * 1000,
     max: parseInt(process.env.RATE_LIMIT_MAX, 10),
-    message: { status: "error", message: "Too many requests, try again later." }
+    message: {
+      status: "error",
+      message: "Too many requests, try again later."
+    }
   })
 );
 
 mongoose
-  .connect(process.env.MONGODB_URI, { autoIndex: true })
-  .catch(() => process.exit(1));
+  .connect(process.env.MONGODB_URI, {
+    autoIndex: true
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => {
+    console.error("MongoDB connection failed");
+    process.exit(1);
+  });
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
@@ -71,6 +80,10 @@ app.all("*", (req, res) =>
 
 app.use(errorHandler);
 
-app.listen(process.env.PORT);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`TaskBackend listening on port ${PORT}`);
+});
 
 module.exports = app;

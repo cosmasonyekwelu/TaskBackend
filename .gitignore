@@ -57,4 +57,5 @@ Thumbs.db
 .pids/
 pm2.log
 pm2.pid
+postman_collection.json
 
