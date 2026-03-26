@@ -1,370 +1,180 @@
-# **TaskBackend – Complete API Documentation**
+# TaskBackend (Production-Hardened)
 
-## **Project Description**
+TaskBackend is a secure REST API built with Node.js, Express, and MongoDB (Mongoose), hardened for production usage with JWT auth, RBAC, soft deletion, structured logging, health/readiness checks, and metrics endpoint.
 
-**TaskBackend** is a secure and scalable REST API built with **Node.js**, **Express**, and **MongoDB (Mongoose)**.
-It provides user authentication, profile management, product CRUD operations, and full admin capabilities.
+## What was hardened
 
-The API follows industry best practices:
-
-- JWT authentication (access token only)
-- Role-based access control (User / Admin)
-- Strong request validation (Joi)
-- Centralized error handling
-- XSS & NoSQL injection protection
-- Rate limiting & secure HTTP headers
-- Soft deletion for users and products
-- Clean MVC folder structure
+- Strong startup config validation (`MONGODB_URI`, `JWT_ACCESS_SECRET`, bcrypt rounds).
+- JWT verification with issuer/audience constraints.
+- Stateless logout token revocation support (in-memory blacklist; Redis-ready extension point).
+- RBAC middleware for admin-only endpoints.
+- Input validation expanded to query params and Mongo ObjectIds.
+- Query-level performance updates: indexes, lean reads, projections, text search.
+- Improved operational controls: `/health`, `/ready`, `/metrics`, request IDs, JSON logs.
+- Dockerized deployment with non-root runtime image.
 
 ---
 
-## **Features**
+## 1) Code Review Report
 
-- **JWT Authentication** (simple access-token system)
-- **Role-Based Access Control**
-- **User Profile**
+### Critical
 
-  - View profile
-  - Update profile
-  - Deactivate account (soft delete)
+1. **Privilege escalation on registration**
+   - **Found:** Registration accepted role from client.
+   - **Impact:** Any client could create an admin account.
+   - **Fix:** Registration now always forces role=`user`.
 
-- **Product CRUD**
+2. **No server-side token invalidation on logout**
+   - **Found:** Logout endpoint returned success without revoking token.
+   - **Impact:** Stolen token remained valid until expiry.
+   - **Fix:** Added token blacklist service with `logout` token revocation and `logout-all` marker checks.
 
-  - Create, update, delete (owner or admin)
-  - Public listing & filtering
+### High
 
-- **Admin Management**
+3. **Weak JWT validation hardening**
+   - **Found:** Tokens were validated only with secret.
+   - **Impact:** Reduced control over token trust boundaries.
+   - **Fix:** Added `issuer` and `audience` constraints in sign/verify.
 
-  - Manage all users
-  - Manage all products
+4. **Missing standardized admin authorization middleware**
+   - **Found:** Inline role checks were route-local and inconsistent.
+   - **Impact:** Maintenance risk and accidental bypass potential.
+   - **Fix:** Added reusable `requireRole()` middleware and centralized usage.
 
-- **Security**
+5. **Production observability gaps**
+   - **Found:** No request IDs, no structured logs, no metrics endpoint.
+   - **Impact:** Hard to debug and scale under load.
+   - **Fix:** Added structured JSON logging middleware with request IDs and a metrics endpoint.
 
-  - Helmet
-  - Rate limiting
-  - mongo-sanitize
-  - xss-clean
+### Medium
 
-- **Input Validation** (Joi)
-- **Postman Collection included**
+6. **Query inefficiencies and missing projections/lean**
+   - **Found:** Several list/get operations returned full Mongoose docs.
+   - **Impact:** Higher memory/CPU under concurrency.
+   - **Fix:** Added `lean()`, select projections, and explicit pagination schemas.
+
+7. **Soft-delete filter consistency risks**
+   - **Found:** Some query paths depended on ad-hoc `isDeleted` checks.
+   - **Impact:** Risk of deleted records leaking into API responses.
+   - **Fix:** Added model-level `pre(/^find/)` default active-record filter.
+
+8. **Single global limiter not tuned for auth abuse**
+   - **Found:** One rate-limit profile for all routes.
+   - **Impact:** Increased brute-force risk on auth endpoints.
+   - **Fix:** Added stricter auth limiter and standard headers.
+
+### Low
+
+9. **Startup concerns in `app.js`**
+   - **Found:** App creation and DB startup were coupled.
+   - **Impact:** Harder integration testing and deployment lifecycle management.
+   - **Fix:** Split to app factory (`src/app.js`) and bootstrap (`src/server.js`).
 
 ---
 
-## **Technology Stack**
+## 2) Refactored Architecture
 
-| Layer        | Technologies                                                    |
-| ------------ | --------------------------------------------------------------- |
-| Backend      | Node.js, Express.js                                             |
-| Database     | MongoDB (Mongoose)                                              |
-| Security     | bcryptjs, helmet, express-rate-limit, xss-clean, mongo-sanitize |
-| Auth         | JWT (access token only)                                         |
-| Validation   | Joi                                                             |
-| Architecture | MVC                                                             |
+```
+src/
+  app.js                 # Express app factory
+  server.js              # Startup bootstrap
+  config/env.js          # Runtime config + validation
+  lib/
+    db.js                # Mongo connection lifecycle
+    logger.js            # Structured JSON logger
+    metrics.js           # In-memory metrics collectors
+  middleware/
+    auth.js              # JWT auth + revocation checks
+    rbac.js              # Role middleware
+    requestContext.js    # Request ID + structured HTTP logs
+    metrics.js           # Request metrics timing
+    validate.js          # Joi request validation
+    errorHandler.js      # Safe centralized errors
+  services/
+    tokenBlacklist.js    # Stateless logout revocation store
+```
+
+### Migration plan
+
+Indexes were added in model definitions for:
+- `User`: `email`, `role`, `isActive`, `{isActive, createdAt}`
+- `Product`: `title`, `price`, `createdBy`, `isDeleted`, `{isDeleted, createdAt}`, `{createdBy, isDeleted, createdAt}`, text index on `title/description`
+
+Run in production:
+1. Deploy code.
+2. Run background index build in maintenance window (or allow Mongoose-managed sync strategy in controlled ops flow).
+3. Monitor write latency and lock impact during first rollout.
 
 ---
 
-## **Installation & Setup**
+## 3) API Documentation
 
-### **Prerequisites**
-
-- Node.js v16+
-- MongoDB (local or Atlas)
-- npm or yarn
+- OpenAPI spec added: `src/docs/openapi.yaml`.
+- Core endpoints documented for auth, product listing/create, and ops endpoints.
 
 ---
 
-### **1. Clone the project**
+## 4) Deployment Guide
+
+### Local Docker
 
 ```bash
-git clone https://github.com/your-repo/taskbackend.git
-cd taskbackend
+docker compose up --build
 ```
+
+### Cloud deployment checklist (ECS/Kubernetes/VM)
+
+1. Set environment variables from `.env.example` (never commit secrets).
+2. Use managed MongoDB (Atlas or cloud-managed replica set).
+3. Put API behind HTTPS ingress/load-balancer.
+4. Protect `/metrics` behind internal network controls.
+5. Scale horizontally and externalize token blacklist/rate-limit store to Redis.
+6. Ship structured logs to a log pipeline (CloudWatch/ELK/Datadog).
 
 ---
 
-### **2. Create environment file**
+## 5) Testing Artifacts
+
+- Unit tests:
+  - `tests/unit/tokenBlacklist.test.js`
+  - `tests/unit/rbac.test.js`
+- Integration test:
+  - `tests/integration/health.test.js`
+- Load test script:
+  - `load-tests/taskbackend-load.js`
+
+### Run tests
 
 ```bash
-cp .env.example .env
+npm test
 ```
 
-Example:
-
-```env
-NODE_ENV=development
-PORT=3000
-
-MONGODB_URI=mongodb://localhost:27017/taskbackend_db
-
-JWT_SECRET=your-jwt-secret
-JWT_EXPIRES_IN=24h
-
-BCRYPT_ROUNDS=12
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW_MINUTES=20
-CORS_ORIGIN=*
-```
-
----
-
-### **3. Install dependencies**
+### Run load test
 
 ```bash
-npm install
+BASE_URL=http://localhost:3000 npm run loadtest
 ```
 
----
-
-### **4. Start server**
-
-Development:
-
-```bash
-npm run dev
-```
-
-Production:
-
-```bash
-npm start
-```
+> Note: full before/after benchmark numbers require a running Mongo instance and representative hardware. The included k6 script is ready for controlled baseline and post-change comparisons.
 
 ---
 
-### **5. Health Check**
+## Environment variables
 
-```bash
-curl http://localhost:3000/health
-```
+Copy `.env.example` to `.env` and set values per environment.
 
----
-
-# **Authentication & Authorization**
-
-This API uses a **single JWT access token**.
-
-## **Flow**
-
-1. User logs in.
-2. Server returns:
-
-   - `accessToken`
-
-3. Client sends token in header:
-
-```
-Authorization: Bearer <token>
-```
-
-4. Token expires after **24 hours** (configurable).
+Key variables:
+- `JWT_ACCESS_SECRET` (32+ chars)
+- `JWT_ACCESS_EXPIRES_IN` (default `24h`)
+- `JWT_ISSUER`, `JWT_AUDIENCE`
+- `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`
+- `CORS_ORIGIN` (comma-separated in production)
+- `LOG_LEVEL`
 
 ---
 
-### **Roles**
-
-| Role      | Permissions                                           |
-| --------- | ----------------------------------------------------- |
-| **User**  | Manage own profile, create/update/delete own products |
-| **Admin** | Full access to all users and products                 |
-
----
-
-# **API Endpoints**
-
----
-
-# **AUTH (`/api/auth`)**
-
-## **Register**
-
-**POST** `/api/auth/register`
-Public
-
-Request:
-
-```json
-{
-  "name": "Cosmas",
-  "email": "cosmas@example.com",
-  "password": "StrongPass#2025"
-}
-```
-
----
-
-## **Login**
-
-**POST** `/api/auth/login`
-Returns:
-
-- accessToken
-- user profile
-
----
-
-## **Get Current User**
-
-**GET** `/api/auth/me`
-Protected
-
----
-
-## **Change Password**
-
-**POST** `/api/auth/change-password`
-Protected
-
----
-
-## **Logout**
-
-**POST** `/api/auth/logout`
-Protected
-
----
-
-## **Logout All Devices**
-
-**POST** `/api/auth/logout-all`
-Protected
-
----
-
-# **PRODUCTS (`/api/products`)**
-
-## **Get All Products**
-
-**GET** `/api/products`
-Public
-Supports:
-
-- `page`
-- `limit`
-- `search`
-- `sort`
-
----
-
-## **Get Product**
-
-**GET** `/api/products/:id`
-
----
-
-## **Create Product**
-
-**POST** `/api/products`
-Protected (User/Admin)
-
----
-
-## **Update Product**
-
-**PUT** `/api/products/:id`
-Protected (owner or admin)
-
----
-
-## **Delete Product**
-
-**DELETE** `/api/products/:id`
-Soft delete
-Protected
-
----
-
-# **USER (`/api/users`)**
-
-## **Get Profile**
-
-**GET** `/api/users/profile`
-
-## **Update Profile**
-
-**PUT** `/api/users/profile`
-
-## **Delete Profile**
-
-**DELETE** `/api/users/profile`
-Soft delete
-
----
-
-# **ADMIN (`/api/admin`)**
-
-Admin-only access.
-
-## **List Users**
-
-**GET** `/api/admin/users`
-
-## **Get User**
-
-**GET** `/api/admin/users/:id`
-
-## **Update User**
-
-**PUT** `/api/admin/users/:id`
-
-## **Deactivate User**
-
-**DELETE** `/api/admin/users/:id`
-
-## **Admin Product Management**
-
-- **POST** `/api/admin/products`
-- **PUT** `/api/admin/products/:id`
-- **DELETE** `/api/admin/products/:id`
-
----
-
-# **Postman Collection**
-
-A complete Postman collection is included.
-It covers:
-
-- Auth workflow
-- User profile routes
-- Product CRUD
-- Admin management
-
-Variables used:
-
-```
-base_url = http://localhost:3000/api
-token =
-product_id =
-user_id =
-```
-
----
-
-# **Security Features**
-
-- Password hashing
-- JWT authentication
-- Rate limiting
-- Helmet headers
-- XSS sanitization
-- MongoDB injection prevention
-- Centralized error handler
-- Soft delete logic
-
----
-
-# **Troubleshooting**
-
-| Issue                     | Fix                                           |
-| ------------------------- | --------------------------------------------- |
-| 401 Unauthorized          | Ensure `Authorization: Bearer <token>` is set |
-| Cannot connect to MongoDB | Check `MONGODB_URI`                           |
-| 403 Forbidden             | Requires admin privileges                     |
-| Validation error          | Check Joi schema                              |
-
----
-
-# **Author**
-
-**Cosmas Onyekwelu**
-
----
+## Backward compatibility notes
+
+- Existing endpoint paths and response envelope (`status`, `message`, `data`) are preserved.
+- Auth remains access-token based.
+- Logout behavior is now stricter and secure via token revocation checks.

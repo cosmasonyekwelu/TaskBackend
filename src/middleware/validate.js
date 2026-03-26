@@ -5,6 +5,8 @@ const {
   productCreateSchema,
   productUpdateSchema,
   profileUpdateSchema,
+  productsQuerySchema,
+  objectIdParamSchema
 } = require("../utils/validators");
 
 const schemas = {
@@ -14,6 +16,8 @@ const schemas = {
   productCreate: productCreateSchema,
   productUpdate: productUpdateSchema,
   profileUpdate: profileUpdateSchema,
+  productsQuery: productsQuerySchema,
+  objectIdParam: objectIdParamSchema
 };
 
 function validate(schema) {
@@ -21,20 +25,14 @@ function validate(schema) {
     const options = {
       abortEarly: false,
       stripUnknown: true,
-      convert: true,
+      convert: true
     };
 
     const { error, value } = schema.validate(req.body, options);
 
     if (error) {
-      const message = error.details
-        .map((d) => d.message.replace(/["]/g, ""))
-        .join(", ");
-
-      return res.status(400).json({
-        status: "error",
-        message,
-      });
+      const message = error.details.map((d) => d.message.replace(/[\"]/g, "")).join(", ");
+      return res.status(400).json({ status: "error", message });
     }
 
     req.body = value;
@@ -49,17 +47,13 @@ function validateRequest({ body, query, params }) {
       const options = {
         abortEarly: false,
         stripUnknown: true,
-        convert: true,
+        convert: true
       };
 
       if (body) {
         const result = body.validate(req.body, options);
         if (result.error) {
-          errors.push(
-            ...result.error.details.map((d) =>
-              d.message.replace(/["]/g, "")
-            )
-          );
+          errors.push(...result.error.details.map((d) => d.message.replace(/[\"]/g, "")));
         } else {
           req.body = result.value;
         }
@@ -68,11 +62,7 @@ function validateRequest({ body, query, params }) {
       if (query) {
         const result = query.validate(req.query, options);
         if (result.error) {
-          errors.push(
-            ...result.error.details.map((d) =>
-              d.message.replace(/["]/g, "")
-            )
-          );
+          errors.push(...result.error.details.map((d) => d.message.replace(/[\"]/g, "")));
         } else {
           req.query = result.value;
         }
@@ -81,11 +71,7 @@ function validateRequest({ body, query, params }) {
       if (params) {
         const result = params.validate(req.params, options);
         if (result.error) {
-          errors.push(
-            ...result.error.details.map((d) =>
-              d.message.replace(/["]/g, "")
-            )
-          );
+          errors.push(...result.error.details.map((d) => d.message.replace(/[\"]/g, "")));
         } else {
           req.params = result.value;
         }
@@ -94,13 +80,13 @@ function validateRequest({ body, query, params }) {
       if (errors.length > 0) {
         return res.status(400).json({
           status: "error",
-          message: errors.join(", "),
+          message: errors.join(", ")
         });
       }
 
-      next();
+      return next();
     } catch (err) {
-      next(err);
+      return next(err);
     }
   };
 }

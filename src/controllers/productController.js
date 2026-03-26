@@ -7,18 +7,20 @@ const fail = (res, message, status = 400) =>
   res.status(status).json({ status: "error", message });
 
 const ALLOWED_UPDATE_FIELDS = ["title", "description", "price", "stock"];
+const PRODUCT_SAFE_PROJECTION = "title description price stock createdBy createdAt updatedAt";
+
+const sortMap = {
+  createdAt_desc: { createdAt: -1 },
+  createdAt_asc: { createdAt: 1 },
+  price_asc: { price: 1 },
+  price_desc: { price: -1 }
+};
 
 exports.createProduct = async (req, res, next) => {
   try {
-    const { title, price, description, stock } = req.body;
-    if (!title || price == null) return fail(res, "Title and price are required.", 422);
-
     const product = await Product.create({
-      title,
-      description,
-      price,
-      stock,
-      createdBy: req.user.id,
+      ...req.body,
+      createdBy: req.user.id
     });
 
     return success(res, "Product created", { product }, 201);
@@ -29,27 +31,23 @@ exports.createProduct = async (req, res, next) => {
 
 exports.getProducts = async (req, res, next) => {
   try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+    const { page, limit, search, sort } = req.query;
     const skip = (page - 1) * limit;
 
-    const filter = { isDeleted: { $ne: true } };
-    if (req.query.search) filter.title = { $regex: req.query.search, $options: "i" };
-
-    const sort =
-      req.query.sort === "price_asc"
-        ? { price: 1 }
-        : req.query.sort === "price_desc"
-        ? { price: -1 }
-        : { createdAt: -1 };
+    const filter = {};
+    if (search) {
+      filter.$text = { $search: search };
+    }
 
     const [products, total] = await Promise.all([
       Product.find(filter)
-        .populate("createdBy", "name email")
-        .sort(sort)
+        .select(PRODUCT_SAFE_PROJECTION)
+        .populate("createdBy", "name email role")
+        .sort(sortMap[sort] || sortMap.createdAt_desc)
         .skip(skip)
-        .limit(limit),
-      Product.countDocuments(filter),
+        .limit(limit)
+        .lean(),
+      Product.countDocuments({ ...filter, isDeleted: { $ne: true } })
     ]);
 
     return success(res, "", {
@@ -58,8 +56,8 @@ exports.getProducts = async (req, res, next) => {
         total,
         page,
         pages: Math.ceil(total / limit),
-        limit,
-      },
+        limit
+      }
     });
   } catch (err) {
     next(err);
@@ -68,10 +66,10 @@ exports.getProducts = async (req, res, next) => {
 
 exports.getProduct = async (req, res, next) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      isDeleted: { $ne: true },
-    }).populate("createdBy", "name email");
+    const product = await Product.findById(req.params.id)
+      .select(PRODUCT_SAFE_PROJECTION)
+      .populate("createdBy", "name email role")
+      .lean();
 
     if (!product) return fail(res, "Product not found", 404);
     return success(res, "", { product });
@@ -82,11 +80,7 @@ exports.getProduct = async (req, res, next) => {
 
 exports.updateProduct = async (req, res, next) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      isDeleted: { $ne: true },
-    });
-
+    const product = await Product.findById(req.params.id);
     if (!product) return fail(res, "Product not found", 404);
 
     const isOwner = product.createdBy.toString() === req.user.id;
@@ -107,11 +101,7 @@ exports.updateProduct = async (req, res, next) => {
 
 exports.deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      isDeleted: { $ne: true },
-    });
-
+    const product = await Product.findById(req.params.id);
     if (!product) return fail(res, "Product not found", 404);
 
     const isOwner = product.createdBy.toString() === req.user.id;

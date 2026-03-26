@@ -1,12 +1,14 @@
 {
   "name": "taskbackend",
   "version": "1.0.0",
-  "description": "Secure Auth + Products CRUD API (MVC) with access & refresh tokens",
-  "main": "src/app.js",
+  "description": "Production-hardened secure REST API with JWT auth, RBAC, observability, and soft-delete.",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "test": "jest"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "loadtest": "k6 run load-tests/taskbackend-load.js"
   },
   "author": "Cosmas Onyekwelu",
   "license": "MIT",

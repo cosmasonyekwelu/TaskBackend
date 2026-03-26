@@ -2,21 +2,22 @@ const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/adminController");
 const { authenticate } = require("../middleware/auth");
+const { requireRole } = require("../middleware/rbac");
+const { validateRequest, schemas } = require("../middleware/validate");
 
-const requireAdmin = (req, res, next) =>
-  req.user.role === "admin"
-    ? next()
-    : res.status(403).json({ status: "error", message: "Access denied. Admin privileges required." });
-
-router.use(authenticate, requireAdmin);
+router.use(authenticate, requireRole("admin"));
 
 router.get("/users", controller.listUsers);
-router.get("/users/:id", controller.getUser);
-router.put("/users/:id", controller.updateUser);
-router.delete("/users/:id", controller.deleteUser);
+router.get("/users/:id", validateRequest({ params: schemas.objectIdParam }), controller.getUser);
+router.put("/users/:id", validateRequest({ params: schemas.objectIdParam }), controller.updateUser);
+router.delete("/users/:id", validateRequest({ params: schemas.objectIdParam }), controller.deleteUser);
 
-router.post("/products", controller.createProduct);
-router.put("/products/:id", controller.updateProduct);
-router.delete("/products/:id", controller.deleteProduct);
+router.post("/products", validateRequest({ body: schemas.productCreate }), controller.createProduct);
+router.put(
+  "/products/:id",
+  validateRequest({ params: schemas.objectIdParam, body: schemas.productUpdate }),
+  controller.updateProduct
+);
+router.delete("/products/:id", validateRequest({ params: schemas.objectIdParam }), controller.deleteProduct);
 
 module.exports = router;

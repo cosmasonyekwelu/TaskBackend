@@ -7,11 +7,11 @@ const success = (res, message, data = {}, status = 200) =>
 const fail = (res, message, status = 400) =>
   res.status(status).json({ status: "error", message });
 
-const BLOCKED_USER_FIELDS = ["password", "role", "createdAt", "updatedAt"];
+const BLOCKED_USER_FIELDS = ["password", "createdAt", "updatedAt", "deletedAt"];
 
 exports.listUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    const users = await User.find().select("-password -deletedAt").sort({ createdAt: -1 }).lean();
     return success(res, "Users retrieved", { users });
   } catch (err) {
     next(err);
@@ -20,7 +20,7 @@ exports.listUsers = async (req, res, next) => {
 
 exports.getUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
+    const user = await User.findById(req.params.id).select("-password -deletedAt").lean();
     if (!user) return fail(res, "User not found", 404);
     return success(res, "User retrieved", { user });
   } catch (err) {
@@ -37,7 +37,8 @@ exports.updateUser = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true,
-    }).select("-password");
+      projection: "-password -deletedAt"
+    }).lean();
 
     if (!user) return fail(res, "User not found", 404);
     return success(res, "User updated", { user });
@@ -48,8 +49,9 @@ exports.updateUser = async (req, res, next) => {
 
 exports.deleteUser = async (req, res, next) => {
   try {
-    if (req.params.id === req.user.id)
+    if (req.params.id === req.user.id) {
       return fail(res, "You cannot delete your own account", 400);
+    }
 
     const user = await User.findById(req.params.id);
     if (!user) return fail(res, "User not found", 404);
@@ -68,7 +70,7 @@ exports.createProduct = async (req, res, next) => {
   try {
     const product = await Product.create({
       ...req.body,
-      createdBy: req.user.id,
+      createdBy: req.user.id
     });
 
     return success(res, "Product created", { product }, 201);

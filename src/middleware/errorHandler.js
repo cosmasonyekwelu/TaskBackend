@@ -1,7 +1,7 @@
+const logger = require("../lib/logger");
+
 const errorHandler = (err, req, res, next) => {
-  if (process.env.NODE_ENV === "development") {
-    console.error("ERROR =>", err);
-  }
+  logger.error("Unhandled application error", { err: err.message, stack: err.stack, requestId: req.id });
 
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
@@ -12,29 +12,16 @@ const errorHandler = (err, req, res, next) => {
   }
 
   if (err.code === 11000) {
-    statusCode = 400;
+    statusCode = 409;
     const fields = Object.keys(err.keyValue).join(", ");
     message = `Duplicate field value: ${fields}. Please use another value.`;
   }
 
   if (err.name === "ValidationError") {
     statusCode = 400;
-    const messages = Object.values(err.errors).map((e) => {
-      const path = e.path || (e.properties && e.properties.path) || "";
-      const raw = e.message || (e.properties && e.properties.message) || "";
-
-      if (path === "password") {
-        return "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.";
-      }
-
-      if (/fails to match the required pattern|pattern/i.test(raw)) {
-        return `Invalid value for ${path || "field"}.`;
-      }
-
-      return raw || `Invalid value for ${path || "field"}.`;
-    });
-
-    message = messages.join(", ");
+    message = Object.values(err.errors)
+      .map((e) => e.message || `Invalid value for ${e.path || "field"}.`)
+      .join(", ");
   }
 
   if (err.name === "JsonWebTokenError") {
@@ -47,16 +34,20 @@ const errorHandler = (err, req, res, next) => {
     message = "Token has expired. Please log in again.";
   }
 
-  if (err.name === "AppError" && err.isOperational) {
-    statusCode = err.statusCode || 400;
-    message = err.message;
+  if (message === "CORS origin not allowed.") {
+    statusCode = 403;
   }
 
-  return res.status(statusCode).json({
+  const payload = {
     status: "error",
-    message,
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
-  });
+    message
+  };
+
+  if (process.env.NODE_ENV === "development") {
+    payload.stack = err.stack;
+  }
+
+  return res.status(statusCode).json(payload);
 };
 
 module.exports = errorHandler;

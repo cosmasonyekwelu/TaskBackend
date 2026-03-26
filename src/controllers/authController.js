@@ -1,5 +1,7 @@
 const JWTUtils = require("../utils/jwt");
 const User = require("../models/User");
+const tokenBlacklist = require("../services/tokenBlacklist");
+const config = require("../config/env");
 
 const success = (res, message, data = {}, status = 200) =>
   res.status(status).json({ status: "success", message, data });
@@ -7,28 +9,30 @@ const success = (res, message, data = {}, status = 200) =>
 const fail = (res, message, status = 400) =>
   res.status(status).json({ status: "error", message });
 
+const tokenResponse = (user) => {
+  const accessToken = JWTUtils.generateToken({ id: user._id.toString(), role: user.role });
+  return {
+    user: user.toJSON(),
+    accessToken,
+    expiresIn: config.jwt.expiresIn
+  };
+};
+
 const authController = {
   register: async (req, res, next) => {
     try {
-      const { name, email, password, role } = req.body;
-      const existing = await User.findOne({ email });
+      const { name, email, password } = req.body;
+      const existing = await User.findOne({ email }).lean();
       if (existing) return fail(res, "User already exists with this email.", 409);
 
       const user = await User.create({
         name,
         email,
         password,
-        role: role || "user",
+        role: "user"
       });
 
-      const accessToken = JWTUtils.generateToken({ id: user._id });
-
-      return success(
-        res,
-        "Registration successful.",
-        { user: user.toJSON(), accessToken, expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "24h" },
-        201
-      );
+      return success(res, "Registration successful.", tokenResponse(user), 201);
     } catch (err) {
       next(err);
     }
@@ -37,9 +41,10 @@ const authController = {
   login: async (req, res, next) => {
     try {
       const { email, password } = req.body;
-      const user = await User.findOne({ email }).select("+password");
-      if (!user) return fail(res, "Invalid email or password.", 401);
-      if (!user.isActive) return fail(res, "Account has been deactivated.", 401);
+      const user = await User.findOne({ email }).select("+password +deletedAt");
+      if (!user || user.deletedAt || !user.isActive) {
+        return fail(res, "Invalid email or password.", 401);
+      }
 
       const valid = await user.comparePassword(password);
       if (!valid) return fail(res, "Invalid email or password.", 401);
@@ -47,13 +52,7 @@ const authController = {
       user.lastLoginAt = new Date();
       await user.save();
 
-      const accessToken = JWTUtils.generateToken({ id: user._id });
-
-      return success(res, "Login successful.", {
-        user: user.toJSON(),
-        accessToken,
-        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "24h",
-      });
+      return success(res, "Login successful.", tokenResponse(user));
     } catch (err) {
       next(err);
     }
@@ -61,6 +60,7 @@ const authController = {
 
   logout: async (req, res, next) => {
     try {
+      tokenBlacklist.revoke(req.token, req.tokenPayload.exp);
       return success(res, "Logout successful.");
     } catch (err) {
       next(err);
@@ -72,9 +72,11 @@ const authController = {
       const user = await User.findById(req.user.id);
       if (!user) return fail(res, "User not found.", 404);
 
-      user.passwordChangedAt = new Date();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      user.passwordChangedAt = new Date(nowSeconds * 1000);
       await user.save();
 
+      tokenBlacklist.revokeAllForUser(req.user.id, nowSeconds);
       return success(res, "Logged out from all devices.");
     } catch (err) {
       next(err);
@@ -83,7 +85,7 @@ const authController = {
 
   getMe: async (req, res, next) => {
     try {
-      const user = await User.findById(req.user.id).select("-password");
+      const user = await User.findById(req.user.id).select("-password -deletedAt").lean();
       return success(res, "", { user });
     } catch (err) {
       next(err);
@@ -107,7 +109,7 @@ const authController = {
     } catch (err) {
       next(err);
     }
-  },
+  }
 };
 
 module.exports = authController;
